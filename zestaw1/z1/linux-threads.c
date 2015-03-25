@@ -2,11 +2,31 @@
 #include <stdlib.h>
 #include <pthread.h>
 
+#include <semaphore.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
 #define WRITER_TURNS 10
 #define READER_TURNS 10
 #define READERS_COUNT 5
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+// pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+sem_t *readersSem, *writerSem;
+int readersCount = 0;
+
+void post_semaphore(sem_t* semaphore){
+	if (sem_post(semaphore) != 0) {
+        fprintf(stderr, "Error occured during unlocking semaphore.\n");
+        exit (-1);
+    } 
+}
+
+void wait_semaphore(sem_t* semaphore){
+	if (sem_wait(semaphore) != 0) {
+        fprintf(stderr, "Error occured during locking semaphore.\n");
+        exit (-1);
+    } 
+}
 
 long GetRandomTime(int maximumMiliseconds) {
     return (maximumMiliseconds * 1000.0 * (rand() / (RAND_MAX+1.0)));
@@ -17,27 +37,17 @@ int Writer(void* data) {
     int i;
     
     for (i = 0; i < WRITER_TURNS; i++) {
-        int result = pthread_mutex_lock(
-                &mutex);
-        if (result != 0) {
-            fprintf(stderr, "Error occured during locking the mutex.\n");
-            exit (-1);
-        } else {
+        wait_semaphore(writerSem);
+
 	    // Write
 	    printf("(W) Writer started writing...");
 	    fflush(stdout);
 	    usleep(GetRandomTime(800));
 	    printf("finished\n");
             
-	    // Release ownership of the mutex object.
-            result = pthread_mutex_unlock(&mutex);
-            if (result != 0) {
-                fprintf(stderr, "Error occured during unlocking the mutex.\n");
-                exit (-1);
-            }
+        post_semaphore(writerSem);
 	    // Think, think, think, think
-	    usleep(GetRandomTime(1000));
-        }
+	    usleep(GetRandomTime(1000)); 
     }
 
     return 0;
@@ -50,12 +60,17 @@ int Reader(void* data) {
     int readCount = 0;
     
     for (i = 0; i < READER_TURNS; i++) {
-        int result = pthread_mutex_lock(
-                &mutex);
-        if (result != 0) {
-            fprintf(stderr, "Error occured during locking the mutex.\n");
-            exit (-1);
-        } else {
+        
+        wait_semaphore(readersSem);
+
+    	readersCount++;
+
+    	if(readersCount == 1){
+    		wait_semaphore(writerSem);
+    	}
+
+    	post_semaphore(readersSem);
+
 	    // Read
 	    printf("(R) Reader %d started reading...", threadId);
 	    fflush(stdout);
@@ -65,15 +80,14 @@ int Reader(void* data) {
 
 	    readCount++;            
 
-	    // Release ownership of the mutex object.
-            result = pthread_mutex_unlock(&mutex);
-            if (result != 0) {
-                fprintf(stderr, "Error occured during unlocking the mutex.\n");
-                exit (-1);
-            }
-	    
-            usleep(GetRandomTime(800));
+        wait_semaphore(readersSem);
+        readersCount--;
+        if(readersCount == 0){
+        	post_semaphore(writerSem);
         }
+        post_semaphore(readersSem);
+    
+        usleep(GetRandomTime(800));
     }
 
     printf("(R) Reader %d has read %d pages in total.\n", threadId, readCount);
@@ -90,6 +104,10 @@ int main(int argc, char* argv[])
     
     pthread_t writerThread;
     pthread_t readerThreads[READERS_COUNT];
+
+    // TODO: error checking
+    writerSem = sem_open("writer_sem", O_CREAT, S_IRWXU, 1);
+    readersSem = sem_open("readers_sem", O_CREAT, S_IRWXU, 1);
 
     int i,rc;
 
@@ -133,6 +151,9 @@ int main(int argc, char* argv[])
 
     // Wait for the Writer
     pthread_join(writerThread,NULL);
+
+    sem_close(writerSem);
+    sem_close(readersSem);
 
     return (0);
 }
