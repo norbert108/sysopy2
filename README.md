@@ -1,1 +1,1 @@
-# sysopy2
+Zadania z sysopow 2
