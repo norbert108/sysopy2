@@ -7,6 +7,13 @@
 #define READERS_COUNT 5
 #define WRITERS_COUNT 5
 
+#define BUFFER_SIZE 5
+
+/* buffer for writers */
+int buffer = 0; 
+pthread_cond_t cond_full = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_empty = PTHREAD_COND_INITIALIZER;
+
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 long GetRandomTime(int maximumMiliseconds) {
@@ -17,6 +24,7 @@ long GetRandomTime(int maximumMiliseconds) {
 int Writer(void* data) {
     int i;
     int threadId = *(int*)data;
+    int writeCount = 0;
     
     for (i = 0; i < WRITER_TURNS; i++) {
         int result = pthread_mutex_lock(
@@ -26,22 +34,40 @@ int Writer(void* data) {
             exit (-1);
         } else {
 	    // Write
-	    printf("(W) Writer %d started writing...", threadId);
-	    fflush(stdout);
-	    usleep(GetRandomTime(800));
-	    printf("finished\n");
-            
-	    // Release ownership of the mutex object.
-            result = pthread_mutex_unlock(&mutex);
-            if (result != 0) {
-                fprintf(stderr, "Error occured during unlocking the mutex.\n");
-                exit (-1);
-            }
-	    // Think, think, think, think
-	    usleep(GetRandomTime(1000));
+        	// wait until there is free space in buffer
+        	printf("(W) Trying to write, buffer state = %d\n", buffer);
+        	 while (buffer >= BUFFER_SIZE) {
+				pthread_cond_wait(&cond_full, &mutex);
+			}
+
+		    printf("(W) Writer %d started writing...", threadId);
+		    fflush(stdout);
+		    usleep(GetRandomTime(800));
+
+		    buffer++; //incrementing == writing
+
+		    printf("(W) Writer %d finished writing, buffer state = %d\n", threadId, buffer);
+		    fflush(stdout);
+
+		    writeCount++;
+
+		    // there is something in buffor, inform readers
+		    pthread_cond_broadcast(&cond_empty);
+	            
+		    // Release ownership of the mutex object.
+	            result = pthread_mutex_unlock(&mutex);
+	            if (result != 0) {
+	                fprintf(stderr, "Error occured during unlocking the mutex.\n");
+	                exit (-1);
+	            }
+		    // Think, think, think, think
+		    usleep(GetRandomTime(1000));
         }
     }
 
+	printf("(W) Writer %d has written %d pages in total.\n", threadId, writeCount);
+
+    free(data);
     return 0;
 }
 
@@ -58,16 +84,27 @@ int Reader(void* data) {
             fprintf(stderr, "Error occured during locking the mutex.\n");
             exit (-1);
         } else {
-	    // Read
-	    printf("(R) Reader %d started reading...", threadId);
-	    fflush(stdout);
-            // Read, read, read
-	    usleep(GetRandomTime(200));
-	    printf("finished\n");
+        	printf("(R) Trying to read, buffer state = %d\n", buffer);
+        	while (buffer <= 0) {
+				pthread_cond_wait(&cond_empty, &mutex);
+			}
 
-	    readCount++;            
+		    // Read
+		    printf("(R) Reader %d started reading...", threadId);
+		    fflush(stdout);
+	        
+		    buffer--;
 
-	    // Release ownership of the mutex object.
+		    usleep(GetRandomTime(200));
+		    printf("(R) Reader %d finished reading, buffer state = %d\n", threadId, buffer);
+		    fflush(stdout);
+
+		    readCount++;           
+
+		    // if (buffer <= BUFFER_SIZE)
+			pthread_cond_broadcast(&cond_full); 
+
+	    	// Release ownership of the mutex object.
             result = pthread_mutex_unlock(&mutex);
             if (result != 0) {
                 fprintf(stderr, "Error occured during unlocking the mutex.\n");
@@ -82,7 +119,6 @@ int Reader(void* data) {
 
     // Clean up the resources
     free(data);
-
     return 0;
 }
 
