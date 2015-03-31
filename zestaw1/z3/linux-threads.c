@@ -9,11 +9,6 @@
 
 #define OBJECTS_COUNT 5
 
-/* buffer for writers */
-// int buffer = 0; 
-// pthread_cond_t cond_full = PTHREAD_COND_INITIALIZER;
-// pthread_cond_t cond_empty = PTHREAD_COND_INITIALIZER;
-
 int objects[OBJECTS_COUNT];
 pthread_mutex_t mutexArray[OBJECTS_COUNT];
 
