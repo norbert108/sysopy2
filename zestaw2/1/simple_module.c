@@ -68,6 +68,8 @@ ssize_t simple_read(struct file *filp, char __user *user_buf, size_t count, loff
     }
     read_count++;
 
+    printk(KERN_INFO "SIMPLE: read\n");
+
     if (*f_pos == 0) {
         *f_pos += strlen(mybuf);
         return strlen(mybuf);
@@ -84,8 +86,9 @@ ssize_t simple_write(struct file *filp, const char __user *user_buf, size_t coun
 		max = MYBUF_SIZE - 1;
 	}
     err = copy_from_user(mybuf, user_buf, max);
-
     mybuf[max] = 0;
+
+    printk(KERN_INFO "SIMPLE: write %s %d\n", mybuf, strlen(mybuf));
 
     write_count++;
     return max;
