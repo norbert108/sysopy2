@@ -1,14 +1,13 @@
 #include "simple_module.h"
 
-#define MODULE_BUFF_SIZE 500
-#define INPUT_BUFF_SIZE 100
+#define MYBUF_SIZE 100
 #define SIMPLE_MAJOR 199
 
 const char *text = "SIMPLE. Read calls: %d, Write calls: %d\n";
 
 int read_count = 0;
 int write_count = 0;
-char *module_buff, *input_buff, *temp_buff;
+char *mybuf;
 
 struct proc_dir_entry *proc_entry = 0;
 
@@ -25,15 +24,13 @@ int __init simple_init(void) {
         return result;
     }
 
-    module_buff = kmalloc(MODULE_BUFF_SIZE, GFP_KERNEL);
-    module_buff[0] = 0;
-    input_buff = kmalloc(INPUT_BUFF_SIZE, GFP_KERNEL);
-    if (!module_buff) {
+    mybuf = kmalloc(MYBUF_SIZE, GFP_KERNEL);
+    if (!mybuf) {
         result = -ENOMEM;
         simple_exit();
         return result;
     } else {
-        memset(module_buff, 0, 1);
+        memset(mybuf, 0, 1);
         printk(KERN_INFO "The SIMPLE module has been inserted.\n");
         return 0;
     }
@@ -47,9 +44,8 @@ void simple_exit(void) {
 	}
 
     /* Free the buffer */
-    if (module_buff) {
-        kfree(module_buff);
-        kfree(input_buff);
+    if (mybuf) {
+        kfree(mybuf);
     }
 
     printk(KERN_INFO "The SIMPLE module has been removed\n");
@@ -66,15 +62,15 @@ int simple_release(struct inode *inode, struct file *filp) {
 ssize_t simple_read(struct file *filp, char __user *user_buf, size_t count, loff_t *f_pos) {
     /* Move one byte to the userspace */
     // copy_to_user(void *to, void* from, int size)
-    int err = copy_to_user(user_buf, module_buff, strlen(module_buff));
+    int err = copy_to_user(user_buf, mybuf, strlen(mybuf));
     if (err) {
 		printk(KERN_WARNING "SIMPLE: error occured in simple_read: %d", err);
     }
     read_count++;
 
     if (*f_pos == 0) {
-        *f_pos += strlen(module_buff);
-        return strlen(module_buff);
+        *f_pos += strlen(mybuf);
+        return strlen(mybuf);
     } else {
         return 0;
     }
@@ -84,33 +80,12 @@ ssize_t simple_write(struct file *filp, const char __user *user_buf, size_t coun
     // copy_from_user(to, from, size)
     int max = count;
     int err;
-    if (max > MODULE_BUFF_SIZE - 1) {
-		max = MODULE_BUFF_SIZE - 1;
+    if (max > MYBUF_SIZE - 1) {
+		max = MYBUF_SIZE - 1;
 	}
-    err = copy_from_user(input_buff, user_buf, max);
-    input_buff[max] = 0; // null-terminated string
+    err = copy_from_user(mybuf, user_buf, max);
 
-    ssize_t buffer_len = strlen(module_buff);
-    
-    temp_buff = kmalloc(buffer_len + count + 2, GFP_KERNEL);
-    temp_buff[0] = 0;
-
-    // append read string to module buffer
-    if(buffer_len > 0) {
-        strcpy(temp_buff, module_buff);
-        temp_buff[buffer_len] = 0;
-
-        strcat(temp_buff, input_buff);
-    } else {
-        strcpy(temp_buff, input_buff);
-        temp_buff[count + 1] = 0;
-    }
-
-    kfree(module_buff);
-    module_buff = kmalloc(buffer_len + count + 2, GFP_KERNEL);
-    strcpy(module_buff, temp_buff);
-
-    kfree(temp_buff);
+    mybuf[max] = 0;
 
     write_count++;
     return max;
