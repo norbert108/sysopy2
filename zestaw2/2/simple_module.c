@@ -98,11 +98,10 @@ ssize_t simple_write(struct file *filp, const char __user *user_buf, size_t coun
     if(kstrtol(input_buff, 10, (long*)&pid) != 0){
         printk(KERN_WARNING "Invalid pid %s\n", input_buff);
     } else {
-        // pid_struct = find_get_pid(pid);
-        // task = pid_task(pid_struct, PIDTYPE_PID);
-   //     printk(KERN_DEBUG "%s\n", task->comm);
+        pid_struct = find_get_pid(pid);
+        task = pid_task(pid_struct, PIDTYPE_PID);
+    	strcpy(module_buff, task->comm);
     }
-        strcpy(module_buff, "xD");
 
     write_count++;
     return max;
@@ -111,33 +110,5 @@ ssize_t simple_write(struct file *filp, const char __user *user_buf, size_t coun
 bool copied = false;
 
 ssize_t simple_read_proc(struct file *filp, char *user_buf, size_t count, loff_t *f_pos) {
-	char *buf;
-	int length;
-	int err;
-
-	buf = kmalloc(1000, GFP_KERNEL);
-	if (!buf) goto out;
-
-	if (!copied) {
-		length = snprintf(buf, 1000, text, read_count, write_count);
-		if (count >= length) {
-			count = length;
-		}
-
-		err = copy_to_user(user_buf, buf, count);
-		if (err) {
-	    	printk(KERN_WARNING "SIMPLE: error occured in simple_read_proc: %d\n", err);
-			goto out;
-		}
-		copied = true;
-	} else {
-    	count = 0;
-		copied = false;
-	}
-
-out:
-	if (buf) {
-		kfree(buf);
-	}
-	return count;
+	return simple_read(filp, user_buf, count, f_pos);
 }
