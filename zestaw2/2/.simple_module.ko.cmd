@@ -1,1 +1,0 @@
-cmd_/home/norbert/Projects/sysopy2/zestaw2/2/simple_module.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/norbert/Projects/sysopy2/zestaw2/2/simple_module.ko /home/norbert/Projects/sysopy2/zestaw2/2/simple_module.o /home/norbert/Projects/sysopy2/zestaw2/2/simple_module.mod.o
